@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>חרב שאול — מערכת ניהול גדודית</title>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0c10;--bg2:#111318;--bg3:#181c24;--bg4:#1e2330;
+    --border:#2a3045;--border2:#3a4560;
+    --text:#e8eaf0;--text2:#9aa5c0;--text3:#5a6580;
+    --gold:#c8a84b;--gold2:#e8c96b;
+    --red:#e05555;--red2:#ff7070;
+    --green:#3dbe7a;--blue:#4a90d9;--amber:#e09040;
+    --font:'Assistant',sans-serif;
+    --radius:8px;--radius-lg:14px;--radius-xl:20px;
+    --shadow:0 4px 24px rgba(0,0,0,0.5);
+    --shadow-lg:0 8px 48px rgba(0,0,0,0.7);
+  }
+  body{font-family:var(--font);background:var(--bg);color:var(--text);direction:rtl;min-height:100vh;overflow-x:hidden}
+
+  #loading-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .4s}
+  #loading-screen.hidden{opacity:0;pointer-events:none}
+  .spinner{width:40px;height:40px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading-text{color:var(--text3);font-size:14px;letter-spacing:1px}
+
+  #login-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,#1a2035 0%,#0a0c10 70%);position:relative;overflow:hidden}
+  .grid-bg{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:0.3}
+  .grid-bg::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(200,168,75,0.08) 0%,transparent 70%)}
+  .login-box{position:relative;z-index:1;width:380px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-xl);padding:40px;box-shadow:var(--shadow-lg)}
+  .login-logo{text-align:center;margin-bottom:32px}
+  .logo-emblem{width:70px;height:70px;margin:0 auto 16px;border:2px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--gold);animation:pulse-glow 3s ease-in-out infinite}
+  @keyframes pulse-glow{0%,100%{box-shadow:0 0 20px rgba(200,168,75,0.3)}50%{box-shadow:0 0 35px rgba(200,168,75,0.55)}}
+  .login-title{font-size:22px;font-weight:700;color:var(--gold);letter-spacing:2px}
+  .login-sub{font-size:13px;color:var(--text3);margin-top:4px;letter-spacing:1px}
+  .form-group{margin-bottom:20px}
+  .form-label{font-size:12px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;display:block;font-weight:600;text-transform:uppercase}
+  .form-select,.form-input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--font);font-size:15px;padding:12px 14px;border-radius:var(--radius);outline:none;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none;direction:rtl}
+  .form-select:focus,.form-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,168,75,0.15)}
+  .form-input[type=password]{letter-spacing:4px}
+  .btn-login{width:100%;padding:14px;font-family:var(--font);font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--gold),var(--amber));color:#0a0c10;border:none;border-radius:var(--radius);cursor:pointer;transition:all .2s;letter-spacing:1px;box-shadow:0 4px 16px rgba(200,168,75,0.35)}
+  .btn-login:hover{transform:translateY(-1px)}
+  .error-msg{color:var(--red);font-size:13px;text-align:center;margin-top:12px;animation:shake .3s ease}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+  #app{display:none;min-height:100vh}
+  .app-inner{display:flex;min-height:100vh}
+  .sidebar{width:220px;min-height:100vh;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;position:fixed;right:0;top:0;z-index:100}
+  .sidebar-header{padding:20px 16px;border-bottom:1px solid var(--border)}
+  .sidebar-logo{font-size:13px;font-weight:700;color:var(--gold);letter-spacing:2px}
+  .sidebar-role{font-size:12px;color:var(--text3);margin-top:4px}
+  .sync-status{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text3)}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;transition:background .3s}
+  .sync-dot.syncing{background:var(--amber);animation:blink .8s ease-in-out infinite}
+  .sync-dot.offline{background:var(--red)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+  .sidebar-nav{flex:1;padding:12px 0}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:14px;font-weight:500;cursor:pointer;color:var(--text2);transition:all .15s;border-right:3px solid transparent}
+  .nav-item:hover{color:var(--text);background:var(--bg3)}
+  .nav-item.active{color:var(--gold);background:rgba(200,168,75,0.08);border-right-color:var(--gold)}
+  .nav-icon{font-size:16px;width:20px;text-align:center}
+  .sidebar-footer{padding:16px}
+  .btn-logout{width:100%;padding:10px;background:transparent;border:1px solid var(--border2);color:var(--text3);font-family:var(--font);font-size:13px;border-radius:var(--radius);cursor:pointer;transition:all .2s}
+  .btn-logout:hover{border-color:var(--red);color:var(--red);background:rgba(224,85,85,0.08)}
+  .main{margin-right:220px;padding:28px 32px;flex:1}
+
+  .hamburger{display:none;position:fixed;top:14px;right:14px;z-index:200;background:var(--bg2);border:1px solid var(--border2);color:var(--gold);font-size:20px;padding:8px 12px;border-radius:var(--radius);cursor:pointer}
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99}
+  .sidebar-overlay.open{display:block}
+  @media(max-width:768px){
+    .hamburger{display:block}
+    .sidebar{transform:translateX(100%);transition:transform .25s;width:250px}
+    .sidebar.open{transform:translateX(0)}
+    .main{margin-right:0;padding:20px 16px;padding-top:60px}
+    .metrics-grid{grid-template-columns:1fr 1fr!important}
+    .two-col{grid-template-columns:1fr!important}
+    .form-row{grid-template-columns:1fr!important}
+    .login-box{width:92%;padding:28px 20px}
+  }
+
+  .page{display:none}
+  .page.active{display:block;animation:fadeIn .25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}
+  .page-title{font-size:24px;font-weight:700;color:var(--text)}
+  .page-badge{font-size:11px;font-weight:700;padding:4px 10px;background:rgba(200,168,75,0.15);color:var(--gold);border:1px solid rgba(200,168,75,0.3);border-radius:20px;letter-spacing:1px}
+  .timestamp{font-size:12px;color:var(--text3)}
+
+  .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+  .metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;position:relative;overflow:hidden;transition:border-color .2s}
+  .metric-card:hover{border-color:var(--border2)}
+  .metric-card::before{content:'';position:absolute;top:0;right:0;width:3px;height:100%}
+  .metric-card.gold::before{background:var(--gold)}.metric-card.green::before{background:var(--green)}
+  .metric-card.blue::before{background:var(--blue)}.metric-card.red::before{background:var(--red)}
+  .metric-label{font-size:11px;color:var(--text3);font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .metric-value{font-size:32px;font-weight:800;line-height:1}
+  .metric-card.gold .metric-value{color:var(--gold)}.metric-card.green .metric-value{color:var(--green)}
+  .metric-card.blue .metric-value{color:var(--blue)}.metric-card.red .metric-value{color:var(--red)}
+  .metric-sub{font-size:12px;color:var(--text3);margin-top:6px}
+
+  .data-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:20px}
+  .data-card-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .data-card-title{font-size:14px;font-weight:600;color:var(--text)}
+  .data-table{width:100%;border-collapse:collapse;font-size:14px}
+  .data-table th{padding:10px 16px;text-align:right;font-size:11px;font-weight:600;color:var(--text3);letter-spacing:1px;background:var(--bg3);border-bottom:1px solid var(--border)}
+  .data-table td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--text)}
+  .data-table tr:last-child td{border-bottom:none}
+  .data-table tr:hover td{background:var(--bg3)}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  .badge::before{content:'';width:6px;height:6px;border-radius:50%}
+  .badge.present{background:rgba(61,190,122,0.15);color:var(--green)}.badge.present::before{background:var(--green)}
+  .badge.home{background:rgba(74,144,217,0.15);color:var(--blue)}.badge.home::before{background:var(--blue)}
+  .badge.warn{background:rgba(224,85,85,0.15);color:var(--red)}.badge.warn::before{background:var(--red)}
+
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .field-label{font-size:12px;color:var(--text3);margin-bottom:6px;font-weight:600;display:block}
+  .field-input,.field-select,.field-textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--font);font-size:14px;padding:10px 12px;border-radius:var(--radius);outline:none;transition:border-color .2s,box-shadow .2s;direction:rtl}
+  .field-input:focus,.field-select:focus,.field-textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,168,75,0.12)}
+  .field-textarea{resize:vertical;min-height:90px}
+  .btn-primary{padding:10px 22px;background:var(--gold);color:#0a0c10;font-family:var(--font);font-size:14px;font-weight:700;border:none;border-radius:var(--radius);cursor:pointer;transition:all .2s}
+  .btn-primary:hover{background:var(--gold2);transform:translateY(-1px)}
+  .btn-danger{padding:10px 22px;background:rgba(224,85,85,0.15);color:var(--red);font-family:var(--font);font-size:14px;font-weight:600;border:1px solid rgba(224,85,85,0.3);border-radius:var(--radius);cursor:pointer;transition:all .2s}
+  .btn-danger:hover{background:rgba(224,85,85,0.25)}
+  .btn-sm{padding:6px 14px;background:transparent;color:var(--text3);font-family:var(--font);font-size:12px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .2s}
+  .btn-sm:hover{border-color:var(--red);color:var(--red)}
+
+  .edit-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px}
+  .edit-table th{padding:8px 10px;text-align:right;font-size:11px;color:var(--text3);font-weight:600;background:var(--bg3);border-bottom:1px solid var(--border)}
+  .edit-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+  .edit-table input,.edit-table select{width:100%;background:transparent;border:1px solid transparent;color:var(--text);font-family:var(--font);font-size:13px;padding:5px 7px;border-radius:5px;outline:none;transition:all .15s;direction:rtl}
+  .edit-table input:hover,.edit-table select:hover{border-color:var(--border2);background:var(--bg4)}
+  .edit-table input:focus,.edit-table select:focus{border-color:var(--gold);background:var(--bg4)}
+  .btn-add-row{background:transparent;border:1px dashed var(--border2);color:var(--text3);font-family:var(--font);font-size:13px;padding:8px 16px;border-radius:var(--radius);cursor:pointer;transition:all .2s;width:100%;margin-bottom:12px}
+  .btn-add-row:hover{border-color:var(--gold);color:var(--gold);background:rgba(200,168,75,0.05)}
+  .btn-del-row{background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px;border-radius:4px;transition:color .15s}
+  .btn-del-row:hover{color:var(--red)}
+
+  .event-item{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .event-time{font-size:12px;color:var(--text3);min-width:45px;font-weight:600;margin-top:2px}
+  .event-type{font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:4px}
+  .event-type.op{color:var(--red)}.event-type.med{color:var(--blue)}.event-type.safe{color:var(--amber)}
+  .event-desc{font-size:13px;color:var(--text2);line-height:1.5}
+  .event-co{font-size:11px;color:var(--text3);margin-top:3px}
+
+  .mini-bar-chart{height:140px;display:flex;align-items:flex-end;gap:8px;padding:12px 0 0}
+  .bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .bar-stack{display:flex;flex-direction:column;justify-content:flex-end;height:100px;gap:2px;width:100%}
+  .bar-seg{border-radius:3px 3px 0 0;min-height:4px;transition:all .5s ease}
+  .bar-label{font-size:11px;color:var(--text3);font-weight:500;text-align:center}
+  .chart-legend{display:flex;gap:16px;margin-top:12px;flex-wrap:wrap}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+  .legend-dot{width:8px;height:8px;border-radius:50%}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .co-selector{display:inline-flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
+  .co-pill{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent;font-family:var(--font);transition:all .15s}
+  .co-pill.active{background:rgba(200,168,75,0.15);color:var(--gold);border-color:rgba(200,168,75,0.4)}
+  .co-pill:hover:not(.active){background:var(--bg3);color:var(--text2)}
+  .alert-banner{background:rgba(224,85,85,0.1);border:1px solid rgba(224,85,85,0.3);border-radius:var(--radius);padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:20px;font-size:14px;color:var(--red2)}
+  .ammo-progress{height:6px;background:var(--bg4);border-radius:3px;margin-top:6px;overflow:hidden}
+  .ammo-bar{height:100%;border-radius:3px;transition:width .5s ease}
+
+  #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:12px 24px;border-radius:var(--radius);font-size:14px;font-weight:500;opacity:0;transition:all .3s;z-index:9999;box-shadow:var(--shadow);pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.success{border-color:var(--green);color:var(--green)}
+  #toast.error{border-color:var(--red);color:var(--red)}
+
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--gold)}
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="logo-emblem">⚔</div>
+  <div class="spinner"></div>
+  <div class="loading-text">מתחבר למסד הנתונים...</div>
+</div>
+
+<div id="login-screen">
+  <div class="grid-bg"></div>
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-emblem">⚔</div>
+      <div class="login-title">חרב שאול</div>
+      <div class="login-sub">מערכת ניהול גדודית</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">יחידה</label>
+      <select class="form-select" id="unit-select">
+        <option value="magad">מג"ד</option>
+        <option value="yarden">ירדן</option>
+        <option value="gilboa">גלבוע</option>
+        <option value="taanach">תענך</option>
+        <option value="hafoola">עפולה</option>
+        <option value="palsam">פלס"ם אג"ם</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">סיסמה</label>
+      <input class="form-input" type="password" id="pass-input" placeholder="הקלד סיסמה">
+    </div>
+    <button class="btn-login" id="login-btn">כניסה למערכת</button>
+    <div class="error-msg" id="login-error" style="display:none">סיסמה שגויה. נסה שנית.</div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="app-inner">
+    <button class="hamburger" id="hamburger-btn">☰</button>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">⚔ חרב שאול</div>
+        <div class="sidebar-role" id="sidebar-role-name"></div>
+        <div class="sync-status">
+          <div class="sync-dot" id="sync-dot"></div>
+          <span id="sync-text">מתחבר...</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="timestamp" id="clock" style="text-align:center;margin-bottom:10px"></div>
+        <button class="btn-logout" id="logout-btn">התנתקות</button>
+      </div>
+    </div>
+
+    <main class="main">
+
+      <div class="page" id="page-dashboard">
+        <div class="page-header">
+          <div><div class="page-title">דשבורד פיקודי</div><div class="timestamp" id="dash-time"></div></div>
+          <div class="page-badge">זמן אמת · מבצעי</div>
+        </div>
+        <div id="event-alerts"></div>
+        <div class="metrics-grid" id="dash-metrics"></div>
+        <div class="two-col">
+          <div class="data-card">
+            <div class="data-card-header"><span class="data-card-title">מצבת כוח אדם לפי פלוגה</span></div>
+            <div style="padding:16px">
+              <div id="strength-chart"></div>
+              <div class="chart-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>בבסיס</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>בבית</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>אחר</div>
+              </div>
+            </div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-header">
+              <span class="data-card-title">חריגים אחרונים</span>
+              <span id="event-count-badge" class="badge warn" style="display:none"></span>
+            </div>
+            <div style="padding:0 16px" id="recent-events-list"></div>
+          </div>
+        </div>
+        <div class="data-card">
+          <div class="data-card-header"><span class="data-card-title">סקירת תחמושת</span></div>
+          <div style="padding:16px" id="ammo-overview"></div>
+        </div>
+      </div>
+
+      <div class="page" id="page-personnel">
+        <div class="page-header">
+          <div class="page-title">ניהול כוח אדם</div>
+          <button class="btn-primary" id="save-personnel-btn">שמור שינויים</button>
+        </div>
+        <div id="co-selector-personnel" class="co-selector"></div>
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title" id="personnel-co-title">פלוגת ירדן</span>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <span id="p-count-base" class="badge present">0 בבסיס</span>
+              <span id="p-count-home" class="badge home">0 בבית</span>
+            </div>
+          </div>
+          <div style="padding:16px;overflow-x:auto">
+            <table class="edit-table">
+              <thead><tr><th>שם</th><th>סטטוס</th><th>מיקום</th><th></th></tr></thead>
+              <tbody id="personnel-tbody"></tbody>
+            </table>
+            <button class="btn-add-row" id="add-personnel-row">+ הוסף חייל</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-ammo">
+        <div class="page-header"><div class="page-title">ניהול תחמושת</div></div>
+        <div id="co-selector-ammo" class="co-selector"></div>
+        <div class="data-card">
+          <div class="data-card-header"><span class="data-card-title">דיווח תחמושת</span></div>
+          <div style="padding:20px">
+            <div class="form-row">
+              <div>
+                <label class="field-label">סוג תחמושת</label>
+                <select class="field-select" id="ammo-type">
+                  <option>5.56 מ"מ</option><option>7.62 מ"מ</option>
+                  <option>לאו</option><option>מטול</option><option>גיל</option><option>רפד"ל</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">כמות</label>
+                <input type="number" class="field-input" id="ammo-qty" value="0" min="0">
+              </div>
+            </div>
+            <button class="btn-primary" id="submit-ammo-btn">דיווח תחמושת</button>
+          </div>
+        </div>
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">יומן דיווחים</span>
+            <button class="btn-sm" id="clear-ammo-btn">נקה יומן</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead><tr><th>שעה</th><th>פלוגה</th><th>סוג</th><th>כמות</th></tr></thead>
+              <tbody id="ammo-log-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-equipment">
+        <div class="page-header">
+          <div class="page-title">ניהול צל"ם</div>
+          <button class="btn-primary" id="save-equipment-btn">שמור צל"ם</button>
+        </div>
+        <div id="co-selector-equipment" class="co-selector"></div>
+        <div class="data-card">
+          <div class="data-card-header"><span class="data-card-title" id="equipment-co-title">צל"ם פלוגה</span></div>
+          <div style="padding:16px;overflow-x:auto">
+            <table class="edit-table">
+              <thead><tr><th>פריט</th><th>נדרש</th><th>יש</th><th>סטטוס</th><th></th></tr></thead>
+              <tbody id="equipment-tbody"></tbody>
+            </table>
+            <button class="btn-add-row" id="add-equipment-row">+ הוסף פריט</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-comms">
+        <div class="page-header">
+          <div class="page-title">ניהול תקשוב</div>
+          <button class="btn-primary" id="save-comms-btn">שמור תקשוב</button>
+        </div>
+        <div id="co-selector-comms" class="co-selector"></div>
+        <div class="data-card">
+          <div class="data-card-header"><span class="data-card-title" id="comms-co-title">תקשוב פלוגה</span></div>
+          <div style="padding:16px;overflow-x:auto">
+            <table class="edit-table">
+              <thead><tr><th>פריט</th><th>נדרש</th><th>יש</th><th>סטטוס</th><th></th></tr></thead>
+              <tbody id="comms-tbody"></tbody>
+            </table>
+            <button class="btn-add-row" id="add-comms-row">+ הוסף פריט</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-events">
+        <div class="page-header"><div class="page-title">דיווח חריגים</div></div>
+        <div class="two-col">
+          <div class="data-card">
+            <div class="data-card-header"><span class="data-card-title">דיווח חריג חדש</span></div>
+            <div style="padding:20px">
+              <div style="margin-bottom:14px">
+                <label class="field-label">סוג חריג</label>
+                <select class="field-select" id="event-type">
+                  <option value="op">מבצעי</option>
+                  <option value="med">רפואי</option>
+                  <option value="safe">בטיחות</option>
+                </select>
+              </div>
+              <div style="margin-bottom:14px">
+                <label class="field-label">תיאור האירוע</label>
+                <textarea class="field-textarea" id="event-desc" placeholder="תאר את החריג בפירוט..."></textarea>
+              </div>
+              <button class="btn-danger" id="submit-event-btn">דיווח חריג</button>
+            </div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-header">
+              <span class="data-card-title">חריגים פתוחים</span>
+              <button class="btn-sm" id="clear-events-btn">נקה הכל</button>
+            </div>
+            <div style="padding:0 16px" id="events-list"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, push, remove }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyClRQpdbuf0GscAvkKNOgBt3p0mK1KyBNE",
+  authDomain: "battalion-ac518.firebaseapp.com",
+  databaseURL: "https://battalion-ac518-default-rtdb.firebaseio.com",
+  projectId: "battalion-ac518",
+  storageBucket: "battalion-ac518.firebasestorage.app",
+  messagingSenderId: "959903869085",
+  appId: "1:959903869085:web:0a5cad669ed31a4d3d8c74"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db    = getDatabase(fbApp);
+
+// ── CONSTANTS ────────────────────────────────────────────────────
+const COMPANIES  = ['ירדן','גלבוע','תענך','עפולה','פלסם-אגם'];
+const CO_LABELS  = {'ירדן':'ירדן','גלבוע':'גלבוע','תענך':'תענך','עפולה':'עפולה','פלסם-אגם':'פלס"ם אג"ם'};
+const PASSWORDS  = {magad:'magad123',yarden:'yarden123',gilboa:'gilboa123',taanach:'taanach123',hafoola:'hafoola123',palsam:'palsam123'};
+const UNIT_NAMES = {magad:'מג"ד',yarden:'ירדן',gilboa:'גלבוע',taanach:'תענך',hafoola:'עפולה',palsam:'פלס"ם אג"ם'};
+const CO_KEY     = {yarden:'ירדן',gilboa:'גלבוע',taanach:'תענך',hafoola:'עפולה',palsam:'פלסם-אגם'};
+const DEF_EQ     = ()=>[{item:'M4',req:30,has:30,status:'תקין'},{item:'MAG',req:4,has:4,status:'תקין'},{item:'מטול',req:2,has:2,status:'תקין'},{item:'אפוד',req:30,has:30,status:'תקין'}];
+const DEF_COMMS  = ()=>[{item:'710',req:8,has:8,status:'תקין'},{item:'354',req:4,has:4,status:'תקין'},{item:'סלקום',req:6,has:6,status:'תקין'}];
+
+// ── STATE ────────────────────────────────────────────────────────
+let state = { personnel:{}, ammoLog:[], equipment:{}, comms:{}, events:[] };
+let localP={}, localEQ={}, localCM={};
+let role=null, currentCo='ירדן', currentPage='dashboard';
+
+// ── SYNC UI ──────────────────────────────────────────────────────
+function syncUI(s){
+  const dot=document.getElementById('sync-dot'), txt=document.getElementById('sync-text');
+  dot.className='sync-dot'+(s==='ok'?'':s==='syncing'?' syncing':' offline');
+  txt.textContent=s==='ok'?'מחובר — נתונים חיים':s==='syncing'?'שומר...':'שגיאת חיבור';
+}
+
+// ── FIREBASE LISTENERS ───────────────────────────────────────────
+function attachListeners(){
+  onValue(ref(db,'personnel'),snap=>{
+    state.personnel=snap.val()||{};
+    COMPANIES.forEach(co=>{ if(!state.personnel[co]) state.personnel[co]=[]; });
+    localP=JSON.parse(JSON.stringify(state.personnel));
+    if(currentPage==='dashboard')renderDashboard();
+    if(currentPage==='personnel')renderPersonnel();
+    syncUI('ok');
+  });
+  onValue(ref(db,'ammoLog'),snap=>{
+    const raw=snap.val();
+    state.ammoLog=raw?Object.values(raw):[];
+    if(currentPage==='dashboard')renderDashboard();
+    if(currentPage==='ammo')renderAmmo();
+    syncUI('ok');
+  });
+  onValue(ref(db,'equipment'),snap=>{
+    state.equipment=snap.val()||{};
+    COMPANIES.forEach(co=>{ if(!state.equipment[co]) state.equipment[co]=DEF_EQ(); });
+    localEQ=JSON.parse(JSON.stringify(state.equipment));
+    if(currentPage==='equipment')renderEquipment();
+    syncUI('ok');
+  });
+  onValue(ref(db,'comms'),snap=>{
+    state.comms=snap.val()||{};
+    COMPANIES.forEach(co=>{ if(!state.comms[co]) state.comms[co]=DEF_COMMS(); });
+    localCM=JSON.parse(JSON.stringify(state.comms));
+    if(currentPage==='comms')renderComms();
+    syncUI('ok');
+  });
+  onValue(ref(db,'events'),snap=>{
+    const raw=snap.val();
+    state.events=raw?Object.values(raw):[];
+    if(currentPage==='dashboard')renderDashboard();
+    if(currentPage==='events')renderEvents();
+    syncUI('ok');
+  });
+}
+
+async function fbSet(path,val){ syncUI('syncing'); await set(ref(db,path),val); syncUI('ok'); }
+async function fbPush(path,val){ syncUI('syncing'); await push(ref(db,path),val); syncUI('ok'); }
+async function fbRemove(path){ syncUI('syncing'); await remove(ref(db,path)); syncUI('ok'); }
+
+// ── BOOT ─────────────────────────────────────────────────────────
+setTimeout(()=>{
+  document.getElementById('loading-screen').classList.add('hidden');
+  document.getElementById('login-screen').style.display='flex';
+},1000);
+
+// ── AUTH ─────────────────────────────────────────────────────────
+document.getElementById('login-btn').addEventListener('click',doLogin);
+document.getElementById('pass-input').addEventListener('keydown',e=>{ if(e.key==='Enter')doLogin(); });
+
+function doLogin(){
+  const unit=document.getElementById('unit-select').value;
+  const pass=document.getElementById('pass-input').value;
+  if(pass===PASSWORDS[unit]){
+    role=unit;
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    initApp();
+  } else {
+    const err=document.getElementById('login-error');
+    err.style.display='block';
+    setTimeout(()=>err.style.display='none',3000);
+  }
+}
+
+document.getElementById('logout-btn').addEventListener('click',()=>{
+  role=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('pass-input').value='';
+});
+
+document.getElementById('hamburger-btn').addEventListener('click',()=>{
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+});
+document.getElementById('sidebar-overlay').addEventListener('click',closeSidebar);
+function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+
+// ── INIT ─────────────────────────────────────────────────────────
+function initApp(){
+  document.getElementById('sidebar-role-name').textContent=UNIT_NAMES[role];
+  currentCo=role==='magad'?'ירדן':(CO_KEY[role]||'ירדן');
+  buildSidebar(); initClock(); attachListeners(); initCoSelectors();
+  navigateTo(role==='magad'?'dashboard':'personnel');
+}
+
+function buildSidebar(){
+  const nav=document.getElementById('sidebar-nav');
+  const pages=[
+    {id:'dashboard',icon:'◈',label:'דשבורד',magadOnly:true},
+    {id:'personnel',icon:'◉',label:'כוח אדם'},
+    {id:'ammo',icon:'▲',label:'תחמושת'},
+    {id:'equipment',icon:'◧',label:'צל"ם'},
+    {id:'comms',icon:'◎',label:'תקשוב'},
+    {id:'events',icon:'⚠',label:'חריגים'},
+  ];
+  nav.innerHTML='';
+  pages.forEach(p=>{
+    if(p.magadOnly&&role!=='magad')return;
+    const el=document.createElement('div');
+    el.className='nav-item';el.dataset.page=p.id;
+    el.innerHTML=`<span class="nav-icon">${p.icon}</span>${p.label}`;
+    el.addEventListener('click',()=>{ navigateTo(p.id); closeSidebar(); });
+    nav.appendChild(el);
+  });
+}
+
+function navigateTo(id){
+  currentPage=id;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg=document.getElementById('page-'+id); if(pg)pg.classList.add('active');
+  const ni=document.querySelector(`.nav-item[data-page="${id}"]`); if(ni)ni.classList.add('active');
+  renderPage(id);
+}
+
+function renderPage(id){
+  if(id==='dashboard')renderDashboard();
+  else if(id==='personnel')renderPersonnel();
+  else if(id==='ammo')renderAmmo();
+  else if(id==='equipment')renderEquipment();
+  else if(id==='comms')renderComms();
+  else if(id==='events')renderEvents();
+}
+
+function initClock(){
+  function tick(){
+    const now=new Date();
+    const t=now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const d=now.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'});
+    document.getElementById('clock').textContent=t+' | '+d;
+    const dt=document.getElementById('dash-time'); if(dt)dt.textContent='עדכון: '+t;
+  }
+  tick();setInterval(tick,1000);
+}
+
+function initCoSelectors(){
+  ['personnel','ammo','equipment','comms'].forEach(page=>{
+    const sel=document.getElementById('co-selector-'+page);
+    if(!sel)return;
+    if(role!=='magad'){sel.style.display='none';return;}
+    sel.innerHTML=COMPANIES.map(co=>
+      `<button class="co-pill${co===currentCo?' active':''}" data-page="${page}" data-co="${co}">${CO_LABELS[co]}</button>`
+    ).join('');
+    sel.querySelectorAll('.co-pill').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        currentCo=btn.dataset.co;
+        document.querySelectorAll(`.co-pill[data-page="${page}"]`).forEach(b=>b.classList.toggle('active',b===btn));
+        renderPage(page);
+      });
+    });
+  });
+}
+
+function getActiveCo(){ return role==='magad'?currentCo:(CO_KEY[role]||'ירדן'); }
+function coLabel(co){ return CO_LABELS[co]||co; }
+
+// ── DASHBOARD ────────────────────────────────────────────────────
+function renderDashboard(){
+  let total=0,base=0,home=0;
+  COMPANIES.forEach(co=>{
+    const p=state.personnel[co]||[];
+    total+=p.length;base+=p.filter(x=>x.status==='בבסיס').length;home+=p.filter(x=>x.status==='בבית').length;
+  });
+  const s=total||1;
+  document.getElementById('dash-metrics').innerHTML=`
+    <div class="metric-card gold"><div class="metric-label">סד"כ גדודי</div><div class="metric-value">${total}</div><div class="metric-sub">כלל הכוחות</div></div>
+    <div class="metric-card green"><div class="metric-label">בבסיס</div><div class="metric-value">${base}</div><div class="metric-sub">${Math.round(base/s*100)}% מהכוח</div></div>
+    <div class="metric-card blue"><div class="metric-label">בבית</div><div class="metric-value">${home}</div><div class="metric-sub">${Math.round(home/s*100)}% מהכוח</div></div>
+    <div class="metric-card red"><div class="metric-label">חריגים</div><div class="metric-value">${state.events.length}</div><div class="metric-sub">${state.events.filter(e=>e.type==='med').length} רפואי</div></div>`;
+
+  document.getElementById('event-alerts').innerHTML=state.events.length>0
+    ?`<div class="alert-banner"><span style="font-size:18px">⚠</span>ישנם ${state.events.length} חריגים פתוחים הדורשים טיפול</div>`:'';
+
+  let ch='<div class="mini-bar-chart">';
+  COMPANIES.forEach(co=>{
+    const p=state.personnel[co]||[],tot=p.length||1;
+    const b=p.filter(x=>x.status==='בבסיס').length,h=p.filter(x=>x.status==='בבית').length,o=p.filter(x=>x.status==='אחר').length;
+    ch+=`<div class="bar-group"><div class="bar-stack">
+      <div class="bar-seg" style="background:var(--amber);height:${Math.round(o/tot*100)}px"></div>
+      <div class="bar-seg" style="background:var(--blue);height:${Math.round(h/tot*100)}px"></div>
+      <div class="bar-seg" style="background:var(--green);height:${Math.round(b/tot*100)}px"></div>
+    </div><div class="bar-label">${coLabel(co).slice(0,4)}</div></div>`;
+  });
+  document.getElementById('strength-chart').innerHTML=ch+'</div>';
+
+  const evList=document.getElementById('recent-events-list');
+  evList.innerHTML=state.events.length===0
+    ?'<div style="padding:20px 0;color:var(--text3);font-size:13px;text-align:center">אין חריגים פתוחים</div>'
+    :state.events.slice(-5).reverse().map(ev=>`
+      <div class="event-item">
+        <div class="event-time">${ev.time}</div>
+        <div><div class="event-type ${ev.type}">${evLabel(ev.type)}</div>
+        <div class="event-desc">${ev.desc}</div><div class="event-co">${coLabel(ev.co)}</div></div>
+      </div>`).join('');
+
+  const ecb=document.getElementById('event-count-badge');
+  if(state.events.length>0){ecb.style.display='';ecb.textContent=state.events.length+' פתוחים';}
+  else ecb.style.display='none';
+
+  const ammoTotals={};
+  state.ammoLog.forEach(a=>{ammoTotals[a.type]=(ammoTotals[a.type]||0)+Number(a.qty);});
+  const caps={'5.56 מ"מ':10000,'7.62 מ"מ':3000,'לאו':40,'מטול':20,'גיל':30,'רפד"ל':50};
+  let am='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px">';
+  Object.entries(ammoTotals).forEach(([t,q])=>{
+    const pct=Math.min(Math.round(q/(caps[t]||1000)*100),100);
+    const col=pct>70?'var(--green)':pct>40?'var(--amber)':'var(--red)';
+    am+=`<div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+      <span style="color:var(--text2)">${t}</span><span style="color:var(--text);font-weight:600">${Number(q).toLocaleString()}</span></div>
+      <div class="ammo-progress"><div class="ammo-bar" style="width:${pct}%;background:${col}"></div></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">${pct}% מהנדרש</div></div>`;
+  });
+  if(!Object.keys(ammoTotals).length)am+='<div style="color:var(--text3);font-size:13px">אין דיווחי תחמושת עדיין</div>';
+  document.getElementById('ammo-overview').innerHTML=am+'</div>';
+}
+
+// ── PERSONNEL ────────────────────────────────────────────────────
+function renderPersonnel(){
+  const co=getActiveCo();
+  document.getElementById('personnel-co-title').textContent='פלוגת '+coLabel(co);
+  if(!localP[co])localP[co]=[];
+  const rows=localP[co];
+  document.getElementById('p-count-base').textContent=rows.filter(r=>r.status==='בבסיס').length+' בבסיס';
+  document.getElementById('p-count-home').textContent=rows.filter(r=>r.status==='בבית').length+' בבית';
+  const tbody=document.getElementById('personnel-tbody');
+  tbody.innerHTML=rows.map((r,i)=>`<tr>
+    <td><input value="${esc(r.name)}" data-co="${co}" data-i="${i}" data-f="name" class="pf"></td>
+    <td><select data-co="${co}" data-i="${i}" data-f="status" class="pf">
+      ${['בבסיס','בבית','אחר'].map(s=>`<option${s===r.status?' selected':''}>${s}</option>`).join('')}
+    </select></td>
+    <td><input value="${esc(r.location||'')}" data-co="${co}" data-i="${i}" data-f="location" class="pf"></td>
+    <td><button class="btn-del-row" data-co="${co}" data-i="${i}">✕</button></td>
+  </tr>`).join('');
+  tbody.querySelectorAll('.pf').forEach(el=>{
+    el.addEventListener('input',()=>{
+      localP[el.dataset.co][el.dataset.i][el.dataset.f]=el.value;
+      const c=el.dataset.co;
+      document.getElementById('p-count-base').textContent=localP[c].filter(r=>r.status==='בבסיס').length+' בבסיס';
+      document.getElementById('p-count-home').textContent=localP[c].filter(r=>r.status==='בבית').length+' בבית';
+    });
+  });
+  tbody.querySelectorAll('.btn-del-row').forEach(btn=>{
+    btn.addEventListener('click',()=>{ localP[btn.dataset.co].splice(Number(btn.dataset.i),1); renderPersonnel(); });
+  });
+}
+
+document.getElementById('add-personnel-row').addEventListener('click',()=>{
+  const co=getActiveCo(); if(!localP[co])localP[co]=[];
+  localP[co].push({name:'חייל חדש',status:'בבסיס',location:'בסיס'});
+  renderPersonnel();
+});
+
+document.getElementById('save-personnel-btn').addEventListener('click',async()=>{
+  const co=getActiveCo();
+  try{ await fbSet('personnel/'+co, localP[co]); showToast('כוח אדם נשמר ✓','success'); }
+  catch(e){ showToast('שגיאה בשמירה','error'); }
+});
+
+// ── AMMO ─────────────────────────────────────────────────────────
+function renderAmmo(){
+  document.getElementById('ammo-log-tbody').innerHTML=state.ammoLog.slice().reverse()
+    .map(a=>`<tr><td>${a.time}</td><td>${coLabel(a.co)}</td><td>${a.type}</td><td>${Number(a.qty).toLocaleString()}</td></tr>`).join('');
+}
+
+document.getElementById('submit-ammo-btn').addEventListener('click',async()=>{
+  const co=getActiveCo(), type=document.getElementById('ammo-type').value, qty=Number(document.getElementById('ammo-qty').value);
+  const now=new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  try{ await fbPush('ammoLog',{time:now,co,type,qty}); showToast('דיווח נשלח ✓','success'); document.getElementById('ammo-qty').value=0; }
+  catch(e){ showToast('שגיאה בשליחה','error'); }
+});
+
+document.getElementById('clear-ammo-btn').addEventListener('click',async()=>{
+  if(!confirm('לנקות את יומן התחמושת?'))return;
+  try{ await fbRemove('ammoLog'); showToast('יומן נוקה',''); }catch(e){ showToast('שגיאה','error'); }
+});
+
+// ── EQUIPMENT ────────────────────────────────────────────────────
+function renderEquipment(){
+  const co=getActiveCo();
+  document.getElementById('equipment-co-title').textContent='צל"ם פלוגת '+coLabel(co);
+  if(!localEQ[co])localEQ[co]=DEF_EQ();
+  renderEditTable('equipment-tbody',localEQ[co],co,'equipment');
+}
+document.getElementById('add-equipment-row').addEventListener('click',()=>{
+  const co=getActiveCo(); if(!localEQ[co])localEQ[co]=[];
+  localEQ[co].push({item:'פריט חדש',req:1,has:1,status:'תקין'}); renderEquipment();
+});
+document.getElementById('save-equipment-btn').addEventListener('click',async()=>{
+  const co=getActiveCo();
+  try{ await fbSet('equipment/'+co, localEQ[co]); showToast('צל"ם עודכן ✓','success'); }
+  catch(e){ showToast('שגיאה בשמירה','error'); }
+});
+
+// ── COMMS ────────────────────────────────────────────────────────
+function renderComms(){
+  const co=getActiveCo();
+  document.getElementById('comms-co-title').textContent='תקשוב פלוגת '+coLabel(co);
+  if(!localCM[co])localCM[co]=DEF_COMMS();
+  renderEditTable('comms-tbody',localCM[co],co,'comms');
+}
+document.getElementById('add-comms-row').addEventListener('click',()=>{
+  const co=getActiveCo(); if(!localCM[co])localCM[co]=[];
+  localCM[co].push({item:'פריט חדש',req:1,has:1,status:'תקין'}); renderComms();
+});
+document.getElementById('save-comms-btn').addEventListener('click',async()=>{
+  const co=getActiveCo();
+  try{ await fbSet('comms/'+co, localCM[co]); showToast('תקשוב עודכן ✓','success'); }
+  catch(e){ showToast('שגיאה בשמירה','error'); }
+});
+
+function renderEditTable(tbodyId,rows,co,sk){
+  const tbody=document.getElementById(tbodyId);
+  const loc=sk==='equipment'?localEQ:localCM;
+  tbody.innerHTML=rows.map((r,i)=>`<tr>
+    <td><input value="${esc(r.item)}" data-i="${i}" data-f="item" data-sk="${sk}" data-co="${co}" class="ef"></td>
+    <td><input type="number" value="${r.req}" data-i="${i}" data-f="req" data-sk="${sk}" data-co="${co}" class="ef" style="width:70px"></td>
+    <td><input type="number" value="${r.has}" data-i="${i}" data-f="has" data-sk="${sk}" data-co="${co}" class="ef" style="width:70px"></td>
+    <td><select data-i="${i}" data-f="status" data-sk="${sk}" data-co="${co}" class="ef">
+      ${['תקין','חסר','תקול'].map(s=>`<option${s===r.status?' selected':''}>${s}</option>`).join('')}
+    </select></td>
+    <td><button class="btn-del-row" data-sk="${sk}" data-co="${co}" data-i="${i}" onclick="window._delEq(this)">✕</button></td>
+  </tr>`).join('');
+  tbody.querySelectorAll('.ef').forEach(el=>{
+    el.addEventListener('input',()=>{
+      const L=el.dataset.sk==='equipment'?localEQ:localCM;
+      L[el.dataset.co][el.dataset.i][el.dataset.f]=el.type==='number'?Number(el.value):el.value;
+    });
+  });
+}
+window._delEq=function(btn){
+  const {sk,co,i}=btn.dataset, L=sk==='equipment'?localEQ:localCM;
+  L[co].splice(Number(i),1);
+  if(sk==='equipment')renderEquipment(); else renderComms();
+};
+
+// ── EVENTS ───────────────────────────────────────────────────────
+function evLabel(t){ return t==='op'?'מבצעי':t==='med'?'רפואי':'בטיחות'; }
+
+function renderEvents(){
+  const list=document.getElementById('events-list');
+  list.innerHTML=state.events.length===0
+    ?'<div style="padding:20px 0;color:var(--text3);font-size:13px;text-align:center">אין חריגים פתוחים</div>'
+    :state.events.slice().reverse().map(ev=>`
+      <div class="event-item">
+        <div class="event-time">${ev.time}</div>
+        <div style="flex:1">
+          <div class="event-type ${ev.type}">${evLabel(ev.type)}</div>
+          <div class="event-desc">${ev.desc}</div>
+          <div class="event-co">${coLabel(ev.co)}</div>
+        </div>
+      </div>`).join('');
+}
+
+document.getElementById('submit-event-btn').addEventListener('click',async()=>{
+  const co=getActiveCo(), type=document.getElementById('event-type').value;
+  const desc=document.getElementById('event-desc').value.trim();
+  if(!desc){showToast('נא למלא תיאור האירוע','error');return;}
+  const now=new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  try{
+    await fbPush('events',{time:now,co,type,desc});
+    document.getElementById('event-desc').value='';
+    showToast('חריג דווח','error');
+  }catch(e){showToast('שגיאה בשליחה','error');}
+});
+
+document.getElementById('clear-events-btn').addEventListener('click',async()=>{
+  if(!confirm('לנקות את כל החריגים?'))return;
+  try{ await fbRemove('events'); showToast('חריגים נוקו',''); }catch(e){showToast('שגיאה','error');}
+});
+
+// ── UTILS ────────────────────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='show '+(type||'');
+  setTimeout(()=>t.className='',2800);
+}
+</script>
+</body>
+</html>
